@@ -1,0 +1,8 @@
+future==1.0.0
+iso8601==2.1.0
+paho-mqtt==2.0.0
+PyYAML==6.0.1
+rel==0.4.9.6
+serial==0.0.97
+websocket-client==1.7.0
+websockets==12.0

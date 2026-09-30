@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+
+  capture:
+    build: .
+    container_name: stream-container
+    privileged: true
+    environment:
+      - LD_LIBRARY_PATH=/opt/vc/lib
+    volumes:
+      - ./code:/capture
+      - /opt/vc:/opt/vc
+    ports:
+      - 8000:8000
+    devices:
+      - /dev/vchiq:/dev/vchiq
+      - /dev/video0:/dev/video0
+      - "/dev/bus/usb:/dev/bus/usb"
+
