@@ -154,42 +154,6 @@ uint16_t calibrationSamplesStored = 0;
 char serialCommandBuffer[SERIAL_COMMAND_BUFFER_SIZE];
 uint8_t serialCommandLength = 0;
 
-// ---------- Accelerometer calibration ----------
-// Defaults are identity corrections. After a six-position calibration, copy
-// the reported values here to retain the correction across a reset.
-const float GRAVITY_MS2 = 9.80665f;
-const float ACCEL_OFFSET_DEFAULT[3] = { 0.0f, 0.0f, 0.0f };
-const float ACCEL_SCALE_DEFAULT[3]  = { 1.0f, 1.0f, 1.0f };
-
-float accelOffset[3] = { 0.0f, 0.0f, 0.0f };
-float accelScale[3]  = { 1.0f, 1.0f, 1.0f };
-
-const uint16_t ACCEL_CAL_SAMPLE_COUNT = 100;
-float accelCalPositive[3];
-float accelCalNegative[3];
-bool accelCalPositiveCaptured[3] = { false, false, false };
-bool accelCalNegativeCaptured[3] = { false, false, false };
-int8_t accelCalActiveAxis = -1;
-int8_t accelCalActiveSign = 0;
-uint16_t accelCalSamplesCollected = 0;
-double accelCalSums[3] = { 0.0, 0.0, 0.0 };
-
-// A machine reference is a quick operational zero taken with the machine
-// homed. It is separate from the six-face sensor calibration above.
-bool accelMachineReferenceActive = false;
-bool accelMachineCaptureActive = false;
-float accelMachineReference[3] = { 0.0f, 0.0f, 0.0f };
-uint16_t accelMachineSamplesCollected = 0;
-double accelMachineSums[3] = { 0.0, 0.0, 0.0 };
-
-// The gyroscope is expected to read zero while the homed machine is still.
-// Its bias is captured alongside the machine accelerometer reference.
-const float GYRO_OFFSET_DEFAULT[3] = { 0.0f, 0.0f, 0.0f };
-float gyroOffset[3] = { 0.0f, 0.0f, 0.0f };
-bool gyroMachineCaptureActive = false;
-uint16_t gyroMachineSamplesCollected = 0;
-double gyroMachineSums[3] = { 0.0, 0.0, 0.0 };
-
 void pulseCounter() {
   uint32_t nowUs = micros();
   uint32_t dt = nowUs - lastPulseUs;
@@ -356,6 +320,9 @@ void showCalibrationResult(double actualCurrent) {
   }
 }
 
+// IMU calibration is intentionally disabled. The firmware publishes the
+// MPU6050 values exactly as returned by the driver.
+#if 0
 const char *accelAxisName(uint8_t axis) {
   static const char *const names[] = { "x", "y", "z" };
   return names[axis];
@@ -618,14 +585,13 @@ void correctedGyroscope(const sensors_event_t &raw,
   y = raw.gyro.y - gyroOffset[1];
   z = raw.gyro.z - gyroOffset[2];
 }
+#endif
 
 void printCommandHelp() {
   Serial.println("# commands: help | status | debug on|off | mqtt on|off");
   Serial.println("#           serial on|off|all | serial single <reading>");
   Serial.println("# readings: vib_adc rpm accel_x accel_y accel_z gyro_x gyro_y gyro_z temp_c current_a");
   Serial.println("#           calibrate <actual_amps>  (use 0 for I_ZERO_RAW)");
-  Serial.println("#           machinecal | accelcal machine | accelcal +x|-x|+y|-y|+z|-z");
-  Serial.println("#           accelcal status|reset|apply");
 }
 
 const char *selectedReadingName() {
@@ -750,8 +716,6 @@ void processSerialCommand(char *command) {
     printCommandHelp();
   } else if (strcmp(name, "status") == 0) {
     printStatus();
-  } else if (strcmp(name, "machinecal") == 0) {
-    startMachineCalibration();
   } else if (strcmp(name, "debug") == 0) {
     setOnOffCommand("debug", strtok(NULL, " \t"), debugEnabled);
   } else if (strcmp(name, "serial") == 0) {
@@ -768,19 +732,6 @@ void processSerialCommand(char *command) {
         // Allow a newly enabled MQTT connection attempt on the next loop.
         lastMqttAttemptMs = millis() - MQTT_RETRY_MS;
       }
-    }
-  } else if (strcmp(name, "accelcal") == 0) {
-    char *option = strtok(NULL, " \t");
-    if (option != NULL && strcmp(option, "status") == 0) {
-      printAccelCalibrationStatus();
-    } else if (option != NULL && strcmp(option, "reset") == 0) {
-      resetAccelCalibration();
-    } else if (option != NULL && strcmp(option, "machine") == 0) {
-      startMachineCalibration();
-    } else if (option != NULL && strcmp(option, "apply") == 0) {
-      applyAccelCalibration();
-    } else {
-      startAccelCalibrationCapture(option);
     }
   } else if (strcmp(name, "calibrate") == 0 || strcmp(name, "calibration") == 0) {
     char *value = strtok(NULL, " \t");
@@ -874,8 +825,6 @@ void printSelectedReading(int vibration, float rpm, float accelX, float accelY, 
 
 void setup() {
   Serial.begin(115200);
-  // Load any saved accelerometer and gyroscope correction constants.
-  resetAccelCalibration();
 
   pinMode(VIBRATION_SENSOR, INPUT);
   pinMode(IR_SENSOR, INPUT_PULLUP);
@@ -944,13 +893,12 @@ void loop() {
     int vib = analogRead(VIBRATION_SENSOR);
     sensors_event_t a, g, temp;
     mpu.getEvent(&a, &g, &temp);
-    collectAccelCalibrationSample(a);
-    collectMachineReferenceSample(a);
-    collectGyroReferenceSample(g);
-    float accelX, accelY, accelZ;
-    correctedAcceleration(a, accelX, accelY, accelZ);
-    float gyroX, gyroY, gyroZ;
-    correctedGyroscope(g, gyroX, gyroY, gyroZ);
+    const float accelX = a.acceleration.x;
+    const float accelY = a.acceleration.y;
+    const float accelZ = a.acceleration.z;
+    const float gyroX = g.gyro.x;
+    const float gyroY = g.gyro.y;
+    const float gyroZ = g.gyro.z;
 
     const double rawCurrent = getRawCurrent();
     recordCalibrationSample(rawCurrent);

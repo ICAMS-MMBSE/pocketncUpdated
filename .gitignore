@@ -1,0 +1,19 @@
+# Python virtual environments
+env/
+.env/
+venv/
+.venv/
+.websockVEnv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Data output files
+*.csv
+*.wav
+
+# OS
+.DS_Store
+Thumbs.db

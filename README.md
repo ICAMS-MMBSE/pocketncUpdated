@@ -31,6 +31,8 @@ Reads all sensors and can publish to MQTT via an **Ethernet shield** at 50 Hz. L
 **MQTT topic:** `pocketnc/sensors`
 **Serial output:** `vib_adc,rpm,accel_x,accel_y,accel_z,gyro_x,gyro_y,gyro_z,temp_c,current_A`
 
+Accelerometer and gyroscope values are raw MPU6050 readings. The firmware does not apply a startup offset, scale, bias, or machine-home reference.
+
 ### Runtime serial commands
 
 Open the serial monitor at **115200 baud**, select a line ending, and send one command per line. The settings apply immediately and reset to their defaults after a power cycle or reset.
@@ -45,13 +47,8 @@ Open the serial monitor at **115200 baud**, select a line ending, and send one c
 | `serial off` | Stop live sensor output. Command replies still print. |
 | `mqtt on` / `mqtt off` | Start or stop MQTT publishing. Turning it off disconnects the MQTT client; turning it on reconnects without blocking sensor sampling. |
 | `calibrate <actual_amps>` | Uses the median of the most recent 100 raw-current samples to print a suggested calibration value. Use `calibrate 0` with the machine off to obtain a suggested `I_ZERO_RAW`; otherwise it prints a `CAL_TABLE` row for the supplied measured current. |
-| `machinecal` (or `accelcal machine`) | With the machine homed and motionless, capture 100 samples as a machine reference. It sets X/Y/Z acceleration and gyro X/Y/Z to zero at that pose. Gravity is included in the Z home reference so all measurements are relative to machine home. Repeat whenever you re-home the machine. |
-| `accelcal +x`, `accelcal -x`, etc. | Capture 100 motionless samples with the specified MPU6050 axis pointing straight up. Capture all six faces: `+x`, `-x`, `+y`, `-y`, `+z`, and `-z`. The final capture applies per-axis offset and scale corrections immediately. |
-| `accelcal status` / `accelcal reset` | Show six-face calibration progress / discard captured faces and restore the default accelerometer correction. |
 
 Command and calibration replies begin with `#`, so they are distinguishable from CSV sensor records. Calibration suggestions are intentionally not written to the sketch automatically: review the result, update `I_ZERO_RAW` or `CAL_TABLE` in `mega_sensor_fw.ino`, then upload it.
-
-Accelerometer calibration prints `ACCEL_OFFSET_DEFAULT` and `ACCEL_SCALE_DEFAULT` after the sixth face, and machine calibration prints `GYRO_OFFSET_DEFAULT`. Copy those values into the sketch to retain the sensor corrections after reset or power loss. The machine-home acceleration reference itself is intentionally runtime-only, so run `machinecal` after each home.
 
 ### PC Data Logger (`pc_data_code`)
 Logs sensor data from serial + records audio from a ReSpeaker 6-channel USB mic. Run `combined.py` to capture both simultaneously.
